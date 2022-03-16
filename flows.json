@@ -1,1 +1,1350 @@
-[{"id":"3af82246.3634ae","type":"tab","label":"Flow 1","disabled":false,"info":""}]
+[
+    {
+        "id": "345dd8be279b7ee6",
+        "type": "tab",
+        "label": "Testbed",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "98ab35f82ed10ad0",
+        "type": "mqtt-broker",
+        "name": "",
+        "broker": "broker.hivemq.com",
+        "port": "1883",
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willPayload": "",
+        "willMsg": {},
+        "sessionExpiry": ""
+    },
+    {
+        "id": "c61b4320a2175aa9",
+        "type": "sqlitedb",
+        "db": "/tmp/sqlite",
+        "mode": "RWC"
+    },
+    {
+        "id": "099625d0909ee90b",
+        "type": "sqlitedb",
+        "db": "bufferdata",
+        "mode": "RWC"
+    },
+    {
+        "id": "27e3e056e81a9619",
+        "type": "mqtt in",
+        "z": "345dd8be279b7ee6",
+        "name": "",
+        "topic": "test/val_testbed",
+        "qos": "0",
+        "datatype": "auto",
+        "broker": "98ab35f82ed10ad0",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 80,
+        "y": 220,
+        "wires": [
+            [
+                "931b4c83051da034",
+                "f0ca2dcea41dab05",
+                "9299aab96e632d67"
+            ]
+        ]
+    },
+    {
+        "id": "f0ca2dcea41dab05",
+        "type": "switch",
+        "z": "345dd8be279b7ee6",
+        "name": "",
+        "property": "payload",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "cont",
+                "v": "$GPSR",
+                "vt": "str"
+            },
+            {
+                "t": "cont",
+                "v": "$GPRP",
+                "vt": "str"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 230,
+        "y": 280,
+        "wires": [
+            [
+                "0056f9892ac42ae9"
+            ],
+            [
+                "4b90c8ac109d1b4a"
+            ]
+        ]
+    },
+    {
+        "id": "86b3716cbf66c2c2",
+        "type": "function",
+        "z": "345dd8be279b7ee6",
+        "name": "Temp, Humidity from raw data",
+        "func": "function FixedPoint(fraction)\n{\n this.fraction = fraction;\n}\nFixedPoint.prototype.calculate = function(value)\n{\n let intValue = parseInt(value,16);\n let signed = (intValue & 0x8000) > 0 ? -1 : 1;\n return signed * intValue / Math.pow(2, this.fraction);\n}\n\nfunction reverseString(str)\n{\n return str;\n}\n\nfunction hexToDec(hexString)\n{\n return parseInt(hexString, 16);\n}\n\nfunction insertDecimal(num) {\n return Number((num / 100).toFixed(2));\n}\n\n\nvar raw_data = flow.get(\"rawdata\"); \n\nlet decoder= new FixedPoint(8);\n\nvar MSB = raw_data.substr(24,2);\nvar LSB = raw_data.substr(26,2);\n\nvar data = LSB+MSB;\n\nvar data1 = hexToDec(data);\n\nhexhum = \"0x\" + raw_data.substr(28,4);\ndechum = decoder.calculate(hexhum);\n\n\nvar bufferdata = '{\"temperature\":'+insertDecimal(data1)+',\"humidity\":'+dechum+','+msg.payload+'}';\nflow.set(\"bufferdata\",bufferdata)\n\nmsg.payload = bufferdata\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1070,
+        "y": 380,
+        "wires": [
+            [
+                "d1a544f5bbbbc215",
+                "011d126b41dee6fd"
+            ]
+        ]
+    },
+    {
+        "id": "4b90c8ac109d1b4a",
+        "type": "function",
+        "z": "345dd8be279b7ee6",
+        "name": "Process the raw data",
+        "func": "// split GatewayID from raw data\nvar gatewayid = msg.payload.split(\",\")[2]; \n\n// split temp, humi raw data and store in variable\nvar raw_data  = msg.payload.split(\",\")[4]; \n\n// Split Ble ID from raw data\nvar ble_id = msg.payload.split(\",\")[1];\n\n// store the raw data to flow variable\nflow.set(\"rawdata\",raw_data);\n\n// store the ble id to flow variable\nflow.set(\"bleid\",ble_id);\n\n//SQL qurey for search if there any data in table particular GatewayID.\nvar newMsg = {\n\"topic\": \"SELECT * from data Where gatewayid='\"+gatewayid+\"'\"\n}\nreturn newMsg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 440,
+        "y": 380,
+        "wires": [
+            [
+                "d1198d0a52973c05"
+            ]
+        ]
+    },
+    {
+        "id": "230a52ec9f96aa9a",
+        "type": "function",
+        "z": "345dd8be279b7ee6",
+        "name": "convert",
+        "func": "// change the format object to string\nvar payload_obj = JSON.stringify(msg.payload[0]);\n\n// change the data type string to JSON\nvar payload_json = JSON.parse(payload_obj);\n\n// Get GatewayID from Json\nvar gatewayid = payload_json[\"gatewayid\"]; \n\n// Get lattitue value from JSON\nvar lat = payload_json[\"lat\"];  \n\n // Get Long value from JSON\nvar long = payload_json[\"long\"]; \n\n// get the value from flow variable \nvar ble_id = flow.get(\"bleid\");\n\n// concatenate the data together\nmsg.payload = '\"gatewayid\":\"'+gatewayid+'\",\"deviceid\":\"'+ble_id+'\",\"lat\":'+lat+',\"long\":'+long ;\n\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 800,
+        "y": 380,
+        "wires": [
+            [
+                "cb7ed342775ab210",
+                "86b3716cbf66c2c2"
+            ]
+        ]
+    },
+    {
+        "id": "5dc7a0d3b01f8f6a",
+        "type": "inject",
+        "z": "345dd8be279b7ee6",
+        "name": "GPS",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"data\":[\"$GPSR,A8032AE6CCF4,F008D17893D4,-127,220125,085053.00,15.246814,84.214432,0.0,,1643100707\"]}",
+        "payloadType": "str",
+        "x": 90,
+        "y": 380,
+        "wires": [
+            [
+                "f0ca2dcea41dab05"
+            ]
+        ]
+    },
+    {
+        "id": "2be90e478146c816",
+        "type": "inject",
+        "z": "345dd8be279b7ee6",
+        "name": "Temp",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"data\":[\"$GPRP,E7B31126F98A,A8032AE6CCF4,-25,02010612FF590080BC350100BB0B3F00000005000000,1646213236\"]}",
+        "payloadType": "str",
+        "x": 90,
+        "y": 440,
+        "wires": [
+            [
+                "f0ca2dcea41dab05",
+                "9299aab96e632d67"
+            ]
+        ]
+    },
+    {
+        "id": "e74b9dd54b9ca518",
+        "type": "sqlite",
+        "z": "345dd8be279b7ee6",
+        "mydb": "c61b4320a2175aa9",
+        "sqlquery": "fixed",
+        "sql": "Create table IF NOT EXISTS data(gatewayid text,lat text,long text)",
+        "name": "Create Table",
+        "x": 470,
+        "y": 820,
+        "wires": [
+            [
+                "e392fddbce98d693"
+            ]
+        ]
+    },
+    {
+        "id": "0056f9892ac42ae9",
+        "type": "function",
+        "z": "345dd8be279b7ee6",
+        "name": "Process the raw data",
+        "func": "/*\n   This function will get the gatewayid, latitude and longitude \n   from the raw data and store the values to the pulic flow variables \n   Dynamic query is framed to check for any data rows available \n   for the gatewayid which sends the data. \n   This query will be passed as a topic to the SQL node.\n*/\nvar gatewayid = msg.payload.split(\",\")[1]; // Split the gatewayid from payload\nvar laat = msg.payload.split(\",\")[6];  // split latitude value from payload.\nvar loong = msg.payload.split(\",\")[7]; // split longitude value from payload.\nflow.set(\"gateway\",gatewayid); // store the gatewayid value as flow variable.\nflow.set(\"latti\",laat);  // store the latitude value as flow variable.\nflow.set(\"loggi\",loong); // store longitude value as flow variable.\n\nvar newMsg = {\n\"topic\": \"SELECT * from data Where gatewayid = '\" + gatewayid + \"'\"\n}\n//return the SQL query for check all data from gatewayid \nreturn newMsg;\n\n",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 440,
+        "y": 160,
+        "wires": [
+            [
+                "950e5a1b368ba463",
+                "dbbf3fdc1aa92dba"
+            ]
+        ]
+    },
+    {
+        "id": "950e5a1b368ba463",
+        "type": "sqlite",
+        "z": "345dd8be279b7ee6",
+        "mydb": "c61b4320a2175aa9",
+        "sqlquery": "msg.topic",
+        "sql": "Select * from data where gatewayid=\"125\"",
+        "name": "Search Table",
+        "x": 690,
+        "y": 160,
+        "wires": [
+            [
+                "4822f2bfa65a84e8",
+                "3fcc7538814219ab"
+            ]
+        ]
+    },
+    {
+        "id": "4822f2bfa65a84e8",
+        "type": "function",
+        "z": "345dd8be279b7ee6",
+        "name": "Dynamic Query Generation",
+        "func": "// get the lat value from flow variable\nvar lat = flow.get(\"latti\"); \n\n// get long value from flow variable\nvar long = flow.get(\"loggi\"); \n\n// get GatewayId data from flow variable\nvar gatewayid = flow.get(\"gateway\"); \n\n// check the length of payload if it is equal to zero no pervious data in table we need to insert as a new data\nif (msg.payload.length == 0)\n{  \n    var newMg={\n                \"topic\": \"Insert into data(gatewayid,lat,long) VALUES('\"+gatewayid+\"',\"+lat+\",\"+long+\")\"\n              }\n\n}\n// else already data found in gatewayid so we can update lat and long data in table\nelse\n{\n  newMg = {\n           \"topic\": \"UPDATE data SET lat='\"+lat+\"',long='\"+long+\"'WHERE gatewayid='\"+gatewayid+\"'\"\n          }\n}\n\n//var newMsg = { payload: msg.payload.length };\nreturn newMg;\n",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 960,
+        "y": 160,
+        "wires": [
+            [
+                "f1ee294576645ae1",
+                "7753a2de268dd57f"
+            ]
+        ]
+    },
+    {
+        "id": "f1ee294576645ae1",
+        "type": "sqlite",
+        "z": "345dd8be279b7ee6",
+        "mydb": "c61b4320a2175aa9",
+        "sqlquery": "msg.topic",
+        "sql": "Select * from data where gatewayid=\"125\"",
+        "name": "insert or update Table",
+        "x": 1220,
+        "y": 160,
+        "wires": [
+            [
+                "ca68dfdfbb8a3e33"
+            ]
+        ]
+    },
+    {
+        "id": "dbbf3fdc1aa92dba",
+        "type": "debug",
+        "z": "345dd8be279b7ee6",
+        "name": "Process raw GPS data output",
+        "active": true,
+        "tosidebar": true,
+        "console": true,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 750,
+        "y": 100,
+        "wires": []
+    },
+    {
+        "id": "7753a2de268dd57f",
+        "type": "debug",
+        "z": "345dd8be279b7ee6",
+        "name": "Dynamic query generation output ",
+        "active": true,
+        "tosidebar": true,
+        "console": true,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 1260,
+        "y": 100,
+        "wires": []
+    },
+    {
+        "id": "3fcc7538814219ab",
+        "type": "debug",
+        "z": "345dd8be279b7ee6",
+        "name": "Search table for GPS output",
+        "active": true,
+        "tosidebar": true,
+        "console": true,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 990,
+        "y": 40,
+        "wires": []
+    },
+    {
+        "id": "d1198d0a52973c05",
+        "type": "sqlite",
+        "z": "345dd8be279b7ee6",
+        "mydb": "c61b4320a2175aa9",
+        "sqlquery": "msg.topic",
+        "sql": "Select * from data",
+        "name": "Search Table",
+        "x": 630,
+        "y": 380,
+        "wires": [
+            [
+                "230a52ec9f96aa9a",
+                "5ca7a74085c20917"
+            ]
+        ]
+    },
+    {
+        "id": "931b4c83051da034",
+        "type": "debug",
+        "z": "345dd8be279b7ee6",
+        "name": "Display Raw Data",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 310,
+        "y": 60,
+        "wires": []
+    },
+    {
+        "id": "ca68dfdfbb8a3e33",
+        "type": "debug",
+        "z": "345dd8be279b7ee6",
+        "name": "Inser or update table",
+        "active": true,
+        "tosidebar": true,
+        "console": true,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 1480,
+        "y": 160,
+        "wires": []
+    },
+    {
+        "id": "66aff2900cebb1de",
+        "type": "sqlite",
+        "z": "345dd8be279b7ee6",
+        "mydb": "c61b4320a2175aa9",
+        "sqlquery": "fixed",
+        "sql": "drop table data",
+        "name": "Drop Table",
+        "x": 470,
+        "y": 700,
+        "wires": [
+            [
+                "561195af8840e235"
+            ]
+        ]
+    },
+    {
+        "id": "8eb2e1632d509d49",
+        "type": "inject",
+        "z": "345dd8be279b7ee6",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 280,
+        "y": 700,
+        "wires": [
+            [
+                "66aff2900cebb1de"
+            ]
+        ]
+    },
+    {
+        "id": "561195af8840e235",
+        "type": "debug",
+        "z": "345dd8be279b7ee6",
+        "name": "",
+        "active": true,
+        "tosidebar": true,
+        "console": true,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 760,
+        "y": 700,
+        "wires": []
+    },
+    {
+        "id": "cb7ed342775ab210",
+        "type": "debug",
+        "z": "345dd8be279b7ee6",
+        "name": "",
+        "active": true,
+        "tosidebar": true,
+        "console": true,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 1060,
+        "y": 320,
+        "wires": []
+    },
+    {
+        "id": "5ca7a74085c20917",
+        "type": "debug",
+        "z": "345dd8be279b7ee6",
+        "name": "",
+        "active": true,
+        "tosidebar": true,
+        "console": true,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 820,
+        "y": 320,
+        "wires": []
+    },
+    {
+        "id": "de6d8af9d2d97fec",
+        "type": "comment",
+        "z": "345dd8be279b7ee6",
+        "name": "Check for GPS data or Sensor Data",
+        "info": "Split GPS and Temperature, Humidity data. ",
+        "x": 320,
+        "y": 240,
+        "wires": []
+    },
+    {
+        "id": "24699bad3192d159",
+        "type": "comment",
+        "z": "345dd8be279b7ee6",
+        "name": "Simulated GPS Sample Data ",
+        "info": "GPS Sample data format for testing device offline.",
+        "x": 120,
+        "y": 340,
+        "wires": []
+    },
+    {
+        "id": "f87845dfeae167d6",
+        "type": "azureiothub",
+        "z": "345dd8be279b7ee6",
+        "name": "Azure IoT Hub Top",
+        "protocol": "mqtt",
+        "x": 1550,
+        "y": 380,
+        "wires": [
+            [
+                "f237f30b6943da73"
+            ]
+        ]
+    },
+    {
+        "id": "635124df17ca8390",
+        "type": "inject",
+        "z": "345dd8be279b7ee6",
+        "name": "Send Payload",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": "",
+        "topic": "",
+        "payload": "{\"deviceId\":\"VG-TEST1\",\"key\":\"uPHx5t4nZLWELiWdGYdZ3Zm9ByjeVULbnmDOlvIgLZk=\",\"protocol\":\"mqtt\",\"data\":{\"GatewayID\":\"A99213AA86EF\",\"temperature\":25,\"humidity\":80}}",
+        "payloadType": "json",
+        "x": 1550,
+        "y": 320,
+        "wires": [
+            [
+                "f87845dfeae167d6"
+            ]
+        ]
+    },
+    {
+        "id": "011d126b41dee6fd",
+        "type": "function",
+        "z": "345dd8be279b7ee6",
+        "name": "",
+        "func": "// Convert String to JSON Object\nmsg.payload = JSON.parse(msg.payload);\n\n//concatenate the data together for sending to Azure IoT.\nmsg.payload={\n    \"deviceId\":\"VG-TEST123\",\n    \"key\":\"uPHx5t4nZLWELiWdGYdZ3Zm9ByjeVULbnmDOlvIgLZk=\",\n    \"protocol\":\"mqtt\",\n    \"data\":msg.payload\n}\n\nreturn msg; ",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1320,
+        "y": 380,
+        "wires": [
+            [
+                "f87845dfeae167d6"
+            ]
+        ]
+    },
+    {
+        "id": "f237f30b6943da73",
+        "type": "debug",
+        "z": "345dd8be279b7ee6",
+        "name": "",
+        "active": true,
+        "tosidebar": true,
+        "console": true,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 1740,
+        "y": 380,
+        "wires": []
+    },
+    {
+        "id": "d1a544f5bbbbc215",
+        "type": "debug",
+        "z": "345dd8be279b7ee6",
+        "name": "",
+        "active": true,
+        "tosidebar": true,
+        "console": true,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 1320,
+        "y": 320,
+        "wires": []
+    },
+    {
+        "id": "3b1e6474c1fcb4ee",
+        "type": "inject",
+        "z": "345dd8be279b7ee6",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 260,
+        "y": 820,
+        "wires": [
+            [
+                "e74b9dd54b9ca518"
+            ]
+        ]
+    },
+    {
+        "id": "e392fddbce98d693",
+        "type": "debug",
+        "z": "345dd8be279b7ee6",
+        "name": "",
+        "active": true,
+        "tosidebar": true,
+        "console": true,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 760,
+        "y": 820,
+        "wires": []
+    },
+    {
+        "id": "4fd8040e6adcf692",
+        "type": "comment",
+        "z": "345dd8be279b7ee6",
+        "name": "Simulated Temperature humidity Data",
+        "info": "GPS Sample data format for testing device offline.",
+        "x": 150,
+        "y": 480,
+        "wires": []
+    },
+    {
+        "id": "a20d0e28fd518b2d",
+        "type": "comment",
+        "z": "345dd8be279b7ee6",
+        "name": "Process GPS Raw data",
+        "info": "Split GPS and Temperature, Humidity data. ",
+        "x": 440,
+        "y": 120,
+        "wires": []
+    },
+    {
+        "id": "cfee75b00386b616",
+        "type": "comment",
+        "z": "345dd8be279b7ee6",
+        "name": "Process Sensor Raw data",
+        "info": "Split GPS and Temperature, Humidity data. ",
+        "x": 450,
+        "y": 340,
+        "wires": []
+    },
+    {
+        "id": "6b4b3dd659c25d88",
+        "type": "comment",
+        "z": "345dd8be279b7ee6",
+        "name": "MQTT Listner",
+        "info": "MQTT listner to receive the data from IoT Bluetooth Gateway",
+        "x": 70,
+        "y": 180,
+        "wires": []
+    },
+    {
+        "id": "d5323e74ce6e290e",
+        "type": "comment",
+        "z": "345dd8be279b7ee6",
+        "name": "Generate query for GPS data insert or update",
+        "info": "",
+        "x": 1050,
+        "y": 220,
+        "wires": []
+    },
+    {
+        "id": "4a55a14bf59d1f5d",
+        "type": "comment",
+        "z": "345dd8be279b7ee6",
+        "name": "get Lat, long, from table to form partial JSON",
+        "info": "Get the latitiude and longitude from the table result for the gateway which send the sensor data.\n\nFrame the partial json string with lat and long attributes.",
+        "x": 730,
+        "y": 440,
+        "wires": []
+    },
+    {
+        "id": "8ddf34d8870ee788",
+        "type": "comment",
+        "z": "345dd8be279b7ee6",
+        "name": "Get Temp. and Humidity to frame the JSON",
+        "info": "Get the temperature and humidity data from the raw hexadecimal data. \n\nFrame the full JSON object from the above temp and humidity data along with the lat and long JSON string received as a payload from the previous node.",
+        "x": 1080,
+        "y": 440,
+        "wires": []
+    },
+    {
+        "id": "b233591447bdf116",
+        "type": "comment",
+        "z": "345dd8be279b7ee6",
+        "name": "Send the structured JSON data to Azure IoT Hub",
+        "info": "Send the processed and structured JSON object to Azure IoT Hub",
+        "x": 1440,
+        "y": 480,
+        "wires": []
+    },
+    {
+        "id": "9299aab96e632d67",
+        "type": "function",
+        "z": "345dd8be279b7ee6",
+        "name": "",
+        "func": "msg.payload = JSON.parse(msg.payload);// Convert String to JSON Object\n//concatenate the data together for sending to Azure IoT.\nmsg.payload={\n    \"deviceId\":\"VG-TEST1\",\n    \"key\":\"uPHx5t4nZLWELiWdGYdZ3Zm9ByjeVULbnmDOlvIgLZk=\",\n    \"protocol\":\"mqtt\",\n    \"data\":msg.payload\n}\nreturn msg; ",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 300,
+        "y": 540,
+        "wires": [
+            [
+                "6051cc9562040590",
+                "80a22c7b98ece169"
+            ]
+        ]
+    },
+    {
+        "id": "6051cc9562040590",
+        "type": "azureiothub",
+        "z": "345dd8be279b7ee6",
+        "name": "Azure IoT Hub Middle",
+        "protocol": "mqtt",
+        "x": 560,
+        "y": 540,
+        "wires": [
+            [
+                "3ea41681fa788657"
+            ]
+        ]
+    },
+    {
+        "id": "3ea41681fa788657",
+        "type": "debug",
+        "z": "345dd8be279b7ee6",
+        "name": "",
+        "active": true,
+        "tosidebar": true,
+        "console": true,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 820,
+        "y": 540,
+        "wires": []
+    },
+    {
+        "id": "80a22c7b98ece169",
+        "type": "debug",
+        "z": "345dd8be279b7ee6",
+        "name": "",
+        "active": true,
+        "tosidebar": true,
+        "console": true,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 460,
+        "y": 460,
+        "wires": []
+    },
+    {
+        "id": "34eb555ad3730464",
+        "type": "comment",
+        "z": "345dd8be279b7ee6",
+        "name": "Send Raw data to IoT Hub",
+        "info": "",
+        "x": 550,
+        "y": 600,
+        "wires": []
+    },
+    {
+        "id": "69717db56fd91fd4",
+        "type": "comment",
+        "z": "345dd8be279b7ee6",
+        "name": "Search for the Updated GPS data",
+        "info": "Search the table \"data\" for the last updated GPS data for the gatewayid (which send the sensor data)",
+        "x": 670,
+        "y": 220,
+        "wires": []
+    },
+    {
+        "id": "ee45cbdae4dbdf27",
+        "type": "status",
+        "z": "345dd8be279b7ee6",
+        "name": "",
+        "scope": [
+            "f87845dfeae167d6"
+        ],
+        "x": 320,
+        "y": 1120,
+        "wires": [
+            [
+                "fc28b2f90b58d477"
+            ]
+        ]
+    },
+    {
+        "id": "2ea5a837c501d22e",
+        "type": "debug",
+        "z": "345dd8be279b7ee6",
+        "name": "Buffer data test output ",
+        "active": true,
+        "tosidebar": true,
+        "console": true,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 710,
+        "y": 1040,
+        "wires": []
+    },
+    {
+        "id": "fc28b2f90b58d477",
+        "type": "function",
+        "z": "345dd8be279b7ee6",
+        "name": "",
+        "func": "if(msg.status.text==\"Disconnected\")\n{\n    buffer_data = flow.get(\"bufferdata\")\n    var newMg={\n                \"topic\": \"Insert into buffer_data(data) VALUES('\"+buffer_data+\"')\"\n              }\n\n//var newMsg = { payload: msg.payload.length };\n}\n\nelse\n{\n    newMg= \"msg Send don't need to insert\"\n}\nreturn newMg;\n\n",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 520,
+        "y": 1120,
+        "wires": [
+            [
+                "2ea5a837c501d22e",
+                "37ad9ad100da48b2"
+            ]
+        ]
+    },
+    {
+        "id": "37ad9ad100da48b2",
+        "type": "sqlite",
+        "z": "345dd8be279b7ee6",
+        "mydb": "099625d0909ee90b",
+        "sqlquery": "msg.topic",
+        "sql": "",
+        "name": "",
+        "x": 720,
+        "y": 1120,
+        "wires": [
+            [
+                "3c8a07fd8bb5d7f2"
+            ]
+        ]
+    },
+    {
+        "id": "9e222780d79db363",
+        "type": "sqlite",
+        "z": "345dd8be279b7ee6",
+        "mydb": "099625d0909ee90b",
+        "sqlquery": "fixed",
+        "sql": "Create table IF NOT EXISTS buffer_data\n(id INTEGER PRIMARY KEY AUTOINCREMENT,\ndata text\n)",
+        "name": "Create buffer data Table",
+        "x": 590,
+        "y": 1340,
+        "wires": [
+            [
+                "52ce94cd6f117074"
+            ]
+        ]
+    },
+    {
+        "id": "c606be21231460e4",
+        "type": "inject",
+        "z": "345dd8be279b7ee6",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 360,
+        "y": 1340,
+        "wires": [
+            [
+                "9e222780d79db363"
+            ]
+        ]
+    },
+    {
+        "id": "52ce94cd6f117074",
+        "type": "debug",
+        "z": "345dd8be279b7ee6",
+        "name": "",
+        "active": true,
+        "tosidebar": true,
+        "console": true,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 880,
+        "y": 1340,
+        "wires": []
+    },
+    {
+        "id": "789095348ef8a7c0",
+        "type": "sqlite",
+        "z": "345dd8be279b7ee6",
+        "mydb": "099625d0909ee90b",
+        "sqlquery": "fixed",
+        "sql": "drop table buffer_data",
+        "name": "Drop buffer data Table",
+        "x": 580,
+        "y": 1440,
+        "wires": [
+            [
+                "9c3e0dd315a2bb3f"
+            ]
+        ]
+    },
+    {
+        "id": "171813c01b209ecd",
+        "type": "inject",
+        "z": "345dd8be279b7ee6",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 380,
+        "y": 1440,
+        "wires": [
+            [
+                "789095348ef8a7c0"
+            ]
+        ]
+    },
+    {
+        "id": "9c3e0dd315a2bb3f",
+        "type": "debug",
+        "z": "345dd8be279b7ee6",
+        "name": "",
+        "active": true,
+        "tosidebar": true,
+        "console": true,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 880,
+        "y": 1440,
+        "wires": []
+    },
+    {
+        "id": "3c8a07fd8bb5d7f2",
+        "type": "debug",
+        "z": "345dd8be279b7ee6",
+        "name": "Buffer data Ouput node",
+        "active": true,
+        "tosidebar": true,
+        "console": true,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 970,
+        "y": 1120,
+        "wires": []
+    },
+    {
+        "id": "088995229f7e913d",
+        "type": "sqlite",
+        "z": "345dd8be279b7ee6",
+        "mydb": "099625d0909ee90b",
+        "sqlquery": "fixed",
+        "sql": "Select * from buffer_data",
+        "name": "Search Query",
+        "x": 560,
+        "y": 1540,
+        "wires": [
+            [
+                "8f0d14db7005ac87"
+            ]
+        ]
+    },
+    {
+        "id": "33d130a11243abde",
+        "type": "inject",
+        "z": "345dd8be279b7ee6",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 380,
+        "y": 1540,
+        "wires": [
+            [
+                "088995229f7e913d"
+            ]
+        ]
+    },
+    {
+        "id": "8f0d14db7005ac87",
+        "type": "debug",
+        "z": "345dd8be279b7ee6",
+        "name": "",
+        "active": true,
+        "tosidebar": true,
+        "console": true,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 840,
+        "y": 1540,
+        "wires": []
+    },
+    {
+        "id": "0cd4948771f2adc2",
+        "type": "inject",
+        "z": "345dd8be279b7ee6",
+        "name": "SQL topic query to select last data",
+        "props": [
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "SELECT * FROM buffer_data ORDER BY ID DESC LIMIT 1",
+        "x": 1180,
+        "y": 1480,
+        "wires": [
+            [
+                "5dfdcab991a6f6bd"
+            ]
+        ]
+    },
+    {
+        "id": "5dfdcab991a6f6bd",
+        "type": "sqlite",
+        "z": "345dd8be279b7ee6",
+        "mydb": "099625d0909ee90b",
+        "sqlquery": "msg.topic",
+        "sql": "",
+        "name": "Selecting last data",
+        "x": 1450,
+        "y": 1480,
+        "wires": [
+            [
+                "bc7b498657734d89"
+            ]
+        ]
+    },
+    {
+        "id": "449f4a2731edb8e5",
+        "type": "comment",
+        "z": "345dd8be279b7ee6",
+        "name": "Selecting last data from the table",
+        "info": "",
+        "x": 1470,
+        "y": 1420,
+        "wires": []
+    },
+    {
+        "id": "bc7b498657734d89",
+        "type": "function",
+        "z": "345dd8be279b7ee6",
+        "name": "parse the last data",
+        "func": "\nvar payload_obj = JSON.stringify(msg.payload[0]);\n\n// change the data type string to JSON\nvar payload_json = JSON.parse(payload_obj);\n\n// Get data from Json\nvar buffer_data = payload_json[\"data\"]; \n\n// Get id value from JSON\nvar last_id = payload_json[\"id\"];\n\n// Set is as a Flow variable \nflow.set(\"id_send\",last_id);\n\n\nmsg.payload={\n    \"deviceId\":\"VG-TEST1\",\n    \"key\":\"uPHx5t4nZLWELiWdGYdZ3Zm9ByjeVULbnmDOlvIgLZk=\",\n    \"protocol\":\"mqtt\",\n    \"data\":buffer_data\n}\n\nreturn msg; ",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1690,
+        "y": 1480,
+        "wires": [
+            [
+                "72df929979812ad6",
+                "97089eb53cdf2978"
+            ]
+        ]
+    },
+    {
+        "id": "72df929979812ad6",
+        "type": "debug",
+        "z": "345dd8be279b7ee6",
+        "name": "",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1850,
+        "y": 1400,
+        "wires": []
+    },
+    {
+        "id": "6226b0589f24d261",
+        "type": "sqlite",
+        "z": "345dd8be279b7ee6",
+        "mydb": "099625d0909ee90b",
+        "sqlquery": "fixed",
+        "sql": "DELETE FROM buffer_data WHERE id=20",
+        "name": "Delete Data",
+        "x": 550,
+        "y": 1640,
+        "wires": [
+            [
+                "1261b981159eb9b7"
+            ]
+        ]
+    },
+    {
+        "id": "458d8ef43a53c3e6",
+        "type": "inject",
+        "z": "345dd8be279b7ee6",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 380,
+        "y": 1640,
+        "wires": [
+            [
+                "6226b0589f24d261"
+            ]
+        ]
+    },
+    {
+        "id": "1261b981159eb9b7",
+        "type": "debug",
+        "z": "345dd8be279b7ee6",
+        "name": "",
+        "active": true,
+        "tosidebar": true,
+        "console": true,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 820,
+        "y": 1640,
+        "wires": []
+    },
+    {
+        "id": "97089eb53cdf2978",
+        "type": "azureiothub",
+        "z": "345dd8be279b7ee6",
+        "name": "Azure IoT Hub_3",
+        "protocol": "mqtt",
+        "x": 1930,
+        "y": 1480,
+        "wires": [
+            [
+                "c28bbc9c84de41cd"
+            ]
+        ]
+    },
+    {
+        "id": "c28bbc9c84de41cd",
+        "type": "debug",
+        "z": "345dd8be279b7ee6",
+        "name": "",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 2150,
+        "y": 1480,
+        "wires": []
+    },
+    {
+        "id": "e52ceab64a246a7f",
+        "type": "status",
+        "z": "345dd8be279b7ee6",
+        "name": "",
+        "scope": [
+            "97089eb53cdf2978"
+        ],
+        "x": 1140,
+        "y": 1700,
+        "wires": [
+            [
+                "97c9c4454ed67cab"
+            ]
+        ]
+    },
+    {
+        "id": "97c9c4454ed67cab",
+        "type": "function",
+        "z": "345dd8be279b7ee6",
+        "name": "Delete Send row from sqlite",
+        "func": "\nif(msg.status.text==\"Disconnected\")\n{\n    newMg= \"Message not Send to Hub\";\n\n//var newMsg = { payload: msg.payload.length };\n}\n\nelse\n{\n    \n    var del_id = flow.get(\"id_send\")\n    var newMg={\n                \"topic\": \"DELETE from buffer_data where id=\"+del_id\n              }\n}\nreturn newMg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1400,
+        "y": 1700,
+        "wires": [
+            [
+                "ef1ba11d9fbaf3bd"
+            ]
+        ]
+    },
+    {
+        "id": "ef1ba11d9fbaf3bd",
+        "type": "sqlite",
+        "z": "345dd8be279b7ee6",
+        "mydb": "099625d0909ee90b",
+        "sqlquery": "msg.topic",
+        "sql": "",
+        "name": "Delete last record",
+        "x": 1690,
+        "y": 1700,
+        "wires": [
+            [
+                "645acb5b9f8b2d3e"
+            ]
+        ]
+    },
+    {
+        "id": "645acb5b9f8b2d3e",
+        "type": "debug",
+        "z": "345dd8be279b7ee6",
+        "name": "",
+        "active": true,
+        "tosidebar": true,
+        "console": true,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 1940,
+        "y": 1700,
+        "wires": []
+    }
+]
